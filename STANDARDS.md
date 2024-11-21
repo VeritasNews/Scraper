@@ -61,14 +61,33 @@
 
 ## 4. Testing Standards
 
-- All new features or bug fixes must include corresponding unit tests.
-- Use the following frameworks and tools:
-  - **Python**: `unittest` or `pytest`
-  - **JavaScript**: `Jest` or `React Testing Library`
-- Write clear and concise test cases covering edge cases.
-- Ensure test coverage does not decrease for the project.
+### 4.1 General Guidelines
+- **Test early, test often**: Start writing tests as soon as possible and run them regularly.
+- **Keep tests simple**: Write tests that check only one thing at a time.
+- **Test for expected and unexpected behavior**: Make sure your tests cover both normal and edge cases.
 
----
+### 4.2 Types of Tests
+- **Unit Tests**: Write unit tests for individual functions or components to ensure they work as expected.
+- **Integration Tests**: Check that different parts of the system work together correctly (e.g., database, API, UI).
+- **End-to-End (E2E) Tests**: Simulate real user scenarios to ensure everything works from start to finish.
+
+### 4.3 Naming Conventions
+- Name your test functions clearly so they describe what the test does. For example:
+  - `shouldAddUserSuccessfully`
+  - `shouldShowErrorWhenInvalidInput`
+  - `shouldReturn404ForNonexistentPage`
+
+### 4.4 Test Automation
+- (Optional) Use automated tests where possible to save time and avoid human error. 
+- (Optional) Use CI/CD tools to run tests automatically on every pull request (e.g., GitHub Actions, CircleCI).
+
+### 4.5 Test Coverage
+- Aim for **high coverage**, but don’t obsess over 100%. Focus on the critical parts of the application.
+- Ensure that your tests cover important user interactions and edge cases.
+
+### 4.6 Fixing Failing Tests
+- If a test fails, fix the code **or** the test, but never ignore it.
+- After fixing, run all tests again to ensure nothing else is broken.
 
 ## 5. Documentation Standards
 
