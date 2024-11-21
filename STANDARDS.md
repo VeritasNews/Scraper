@@ -2,20 +2,34 @@
 
 ## 1. Code Standards
 
-### 1.1. General Coding Guidelines
+### 1.1 General Guidelines
+- Write clear and simple code. If someone else reads it, they should easily understand it.
+- Use descriptive names for variables, functions, and classes. Avoid abbreviations.
+- Keep functions small (try to limit them to 20-30 lines).
+- Use consistent indentation (2 or 4 spaces, based on the language).
+- Avoid duplicating code; reuse functions where possible.
+- Comment only when necessary. Write code that is self-explanatory, but use comments to clarify complex logic.
 
-- All code must be clean, readable, and maintainable.
-- Write meaningful variable, function, and class names.
-- Keep functions/methods small, ideally under 50 lines.
-- Follow consistent indentation and spacing throughout the codebase.
+### 1.2 Consistency
+- Be consistent with style and conventions, even if they are not your personal preference.
+- Use linters and formatters to ensure consistent style across the codebase (e.g., ESLint for JavaScript, flake8 for Python).
 
-### 1.2. Language-Specific Guidelines
+### 1.3 Language-Specific Guidelines
+- **JavaScript/React**: 
+  - Follow simple conventions like using `const` for constants, and `let` for variables that will change.
+  - Use arrow functions for anonymous functions.
+- **Python**:
+  - Follow basic PEP 8 guidelines, but focus on readability over strict adherence to every rule.
+- **SQL**: Write queries in a readable, consistent format. Each clause (e.g., `SELECT`, `WHERE`) should be on its own line.
 
-- **JavaScript/React**: Follow the [Airbnb JavaScript Style Guide](https://github.com/airbnb/javascript). Use linters like `eslint` and formatters like `prettier`.
-- **Python**: Follow [PEP 8](https://pep8.org/). Use `flake8` or `pylint` for linting and `black` for code formatting.
-- **SQL**: Write clear and efficient queries, following proper indentation for readability.
+### 1.4 Error Handling
+- Always handle potential errors. Use `try/catch` in JavaScript and `try/except` in Python for critical operations.
+- Display user-friendly error messages, but don't expose sensitive information (e.g., stack traces).
 
----
+### 1.5 Keep it Simple
+- Don't overcomplicate solutions. Always aim for the simplest solution that works.
+- Avoid using unnecessary libraries or tools; only use what’s essential for the project.
+
 
 ## 2. Commit and Versioning Standards
 
