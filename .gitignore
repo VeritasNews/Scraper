@@ -1,0 +1,7 @@
+saved_articles
+grouped_articles
+generated_articles
+__pycache__
+venv
+.env
+config.py
