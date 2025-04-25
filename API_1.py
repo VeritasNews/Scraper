@@ -6,11 +6,22 @@ from flask import Flask, request, Response
 from datetime import datetime
 from urllib.parse import urlparse
 import config
+import hashlib
 
 app = Flask(__name__)
+print("✅ config.SOURCE_URLS keys:", list(config.SOURCE_URLS.keys()))
 
 # Directory for saving JSON files
-PULLED_ARTICLES_SAVE_DIR = config.PULLED_ARTICLES_SAVE_DIR
+# NOT: BURAYI KENDİ PATHİNİZİ GİRİN
+PULLED_ARTICLES_SAVE_DIR = config.PULLED_ARTICLES_SAVE_DIR  #"desktop/articles"
+import hashlib
+
+## Bazı siteler title'ı sadece "ana menü" gibi dönüyor, bu yüzden başlıkları güvenli bir şekilde oluşturmak için URL'yi de kullanıyoruz.
+def safe_filename(title, url):
+    base = "".join(c if c.isalnum() else "_" for c in title)[:50]
+    hash_suffix = hashlib.md5(url.encode()).hexdigest()[:6]
+    return f"{base}_{hash_suffix}"
+## ismi aynı olduğu için hatalı bi şekilde kaydolmayan dosyaları önlemek için md5 hash ile birleştiriyoruz.
 
 # Ensure the save directory exists
 if not os.path.exists(PULLED_ARTICLES_SAVE_DIR):
@@ -216,9 +227,9 @@ def save_json_locally(data, location=""):
 
     # Clean title for filename
     filename_title = "".join(c if c.isalnum() else "_" for c in title)[:50]
-    filename = f"{source}_{article_date[:10]}_{filename_title}.json"
+    filename = f"{source}_{article_date[:10]}_{safe_filename(title, data['url'])}.json"
     filepath = os.path.join(location, filename)
-
+    
     try:
         print(f"📥 Saving file: {filepath}")  # Debugging line
         with open(filepath, 'w', encoding='utf-8') as f:

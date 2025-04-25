@@ -16,15 +16,13 @@ import time
 import config
 import urllib
 from collections import defaultdict
-
 from API_1 import scrapeArticleGeneral, save_json_locally
-
+from urllib.parse import urljoin
+import feedparser
 # Base URL for each source
 source_urls = config.SOURCE_URLS
-
 # Global dictionary to store article counts
 article_counts = {}
-
 import aiohttp
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -32,15 +30,28 @@ from datetime import datetime
 async def fetch_article(session, url, source):
     """ Asynchronous request to fetch an article """
     try:
-        async with session.get(url) as response:
+        async with session.get(url, timeout = 10 ) as response:
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
 
             title_tag = soup.select_one('h1, h2')  # Try multiple header tags
             title_text = title_tag.get_text(strip=True) if title_tag else "Untitled"
-
             content_text = ""
-
+            #Blocklanıp blocklanmadığımızı test ediyoruz
+            if "blocked" in title_text.lower() or "access denied" in title_text.lower():
+                print(f"🚫 Blocked by site: {url}")
+                return {
+                    "title": title_text,
+                    "content": "",
+                    "url": url,
+                    "source": source,
+                    "genre": genre,
+                    "article_date": datetime.now().isoformat(),
+                    "request_date": datetime.now().isoformat(),
+                    "is_empty": True,
+                    "error": "Blocked by site"
+                }
+            
             if source == "cnnturk":  # CNNTURK-specific extraction (Already Implemented)
                 content_blocks = soup.select("section.detail-content p")
             elif source == "sabah":  # **Sabah-specific extraction**
@@ -55,6 +66,26 @@ async def fetch_article(session, url, source):
                 content_blocks = soup.select("div[class*='3QVZl'] p")  # Select paragraphs inside T24 content div
             elif source == "ntv":
                 content_blocks = soup.select("div[class*='content-news-tag-selector'] p")  # Select paragraphs inside T24 content div
+            elif source == "nefes":
+                content_blocks = soup.select("div.post-content p")
+                if not content_blocks:
+                    content_blocks = soup.select("article p, main p")
+            elif source == "haber_sol":
+                content_blocks = soup.select("div.article-content div.font-mukta p")
+                if not content_blocks:
+                    content_blocks = soup.select("article p, div.field__item p, main p")
+            elif source == "gazete_duvar":
+                content_blocks = soup.select("div.content-text p")
+                if not content_blocks:
+                    content_blocks = soup.select("article p, main p, div[class*='article-body'] p")
+            elif source == "evrensel":
+                content_blocks = soup.select("div[class^='news-'] p")  # tüm news-* div'leri hedef alır
+                if not content_blocks:
+                    content_blocks = soup.select("div[class*='content'] p, article p, main p")
+            elif source == "sozcu":
+                content_blocks = soup.select("div.entry-content p")
+                if not content_blocks:
+                    content_blocks = soup.select("article p, main p, div[class*='content'] p")
             else:
                 # General extraction
                 content_blocks = soup.select("div[class*='content'] p, div[class*='article-body'] p, div[class*='news'] p")
@@ -68,8 +99,9 @@ async def fetch_article(session, url, source):
             parsed_url = urllib.parse.urlparse(url)
             path_parts = parsed_url.path.strip("/").split("/")  # Split URL path
 
-            genre = path_parts[0]
-
+            ##aşağısı eklendi, "error": "cannot access local variable 'genre' where it is not associated with a value" sorunu çözümü için
+            genre = path_parts[0] if path_parts else "unknown" # Use the first part as genre if not "unknown"
+            ## 
             if source == "haberturk":
                 genre = "unknown"
 
@@ -98,6 +130,30 @@ async def scrape_articles_async(article_urls, source):
 
 
 
+def get_sozcu_links_from_rss(num_articles=50):
+    rss_feeds = [
+        "https://www.sozcu.com.tr/rss/gundem.xml",
+        "https://www.sozcu.com.tr/rss/yasam.xml",
+        "https://www.sozcu.com.tr/rss/ekonomi.xml",
+        "https://www.sozcu.com.tr/rss/son-dakika.xml"
+    ]
+    all_links = set()
+
+    for rss in rss_feeds:
+        print(f"📡 Fetching RSS: {rss}")
+        feed = feedparser.parse(rss)
+        for entry in feed.entries:
+            url = entry.link
+            if url.startswith("https://www.sozcu.com.tr/") and url not in all_links:
+                all_links.add(url)
+                if len(all_links) >= num_articles:
+                    return list(all_links)
+    
+    print(f"✅ Found {len(all_links)} articles from RSS")
+    return list(all_links)
+
+
+
 def save_articles_multithreaded(articles):
     print(f"🔄 Saving {len(articles)} articles using multi-threading...")  # Debugging
 
@@ -115,54 +171,66 @@ def find_article_urls(source, num_articles=30, max_pages=10):
     if not base_url:
         print(f"❌ Source {source} is not supported.")
         return []
-
+    # ✅ Buraya özel kategori sayfaları:
+    if source == "evrensel":
+        category_urls = [f"{base_url}kategori/{i}" for i in range(1, 11)]
+    else:
+        category_urls = [base_url]
     try:
         session = requests.Session()
         article_urls = set()
         category_tracking = defaultdict(lambda: {"urls": set(), "empty_pages": 0})  # Tracks URLs and empty page count per category
         page = 1
+        stagnant_count = 0  # How many times in a row the article count didn't increase
+        prev_article_total = 0
 
         while len(article_urls) < num_articles and page <= max_pages:
-            url = f"{base_url}?page={page}"  # Modify for different pagination styles
-            response = session.get(url)
+            url = f"{base_url}?page={page}"
+            #Burdan
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+            }
+            response = session.get(url, headers=headers, timeout=10)  # Set a timeout for the request, eğer ki 10sn cevap gelmezse sayfa geçile
+            #buraya kadar değiştir ( response = session.get(url) yerine bu aradaki yer koyuldu)
             response.raise_for_status()
+            print(f"\n🧪 {url} response preview:\n{response.text[:1000]}\n{'-'*60}\n") # kontrol için debugger
             soup = BeautifulSoup(response.text, 'html.parser')
 
-            new_articles_found = False  # Track if we find new articles in this iteration
+            new_articles_found = False
 
             for link in soup.find_all('a', href=True):
                 href = link['href']
                 full_url = urljoin(base_url, href)
 
-                # ✅ Exclude unwanted URLs
                 if any(excluded in full_url for excluded in config.EXCLUDED_URL_KEYWORDS):
-                    continue  # Skip non-article links
+                    continue
 
                 parsed_url = urlparse(full_url)
                 path_parts = parsed_url.path.strip("/").split("/")
-
-                # ✅ Determine article category
                 category = path_parts[0] if path_parts else "unknown"
 
-                # ✅ Ensure the URL matches article criteria
                 if parsed_url.netloc == urlparse(base_url).netloc:
                     if any(keyword in full_url for keyword in config.URL_FIELDS):
-                        if full_url not in category_tracking[category]["urls"]:  # Avoid duplicates
+                        if full_url not in category_tracking[category]["urls"]:
                             category_tracking[category]["urls"].add(full_url)
                             article_urls.add(full_url)
-                            new_articles_found = True  # Found a new article
+                            new_articles_found = True
 
-            # ✅ Check empty-page condition for stopping per category
-            for category, data in category_tracking.items():
-                if len(data["urls"]) == 0:
-                    data["empty_pages"] += 1
-                else:
-                    data["empty_pages"] = 0  # Reset if we found articles
+            current_total = len(article_urls)
+            if current_total == prev_article_total:
+                stagnant_count += 1
+            else:
+                stagnant_count = 0  # reset
+            prev_article_total = current_total
 
-            if not new_articles_found:  # If no new articles were found in this entire page
-                if all(data["empty_pages"] >= 2 for data in category_tracking.values()):
-                    print(f"🔴 No new articles found in any category on page {page}, stopping early for {source}.")
-                    break  # Stop if all categories hit the empty page limit
+            print(f"📄 Checked page {page} for {source}, found {current_total} articles so far.")
+
+            if stagnant_count >= 6:
+                print(f"🔁 Stopping early for {source} after {stagnant_count} stagnant pages.")
+                break
+
+            page += 1
+
 
             print(f"📄 Checked page {page} for {source}, found {len(article_urls)} articles so far.")
             page += 1  # Move to the next page
@@ -186,7 +254,11 @@ empty_content_counts = {}
 
 def create_jsons_from_source(source, num_articles=300):
     """ Scrapes and saves articles using async + threading """
-    article_urls = find_article_urls(source, num_articles)
+    if source == "sozcu":
+        article_urls = get_sozcu_links_from_rss(num_articles)
+    else:
+        article_urls = find_article_urls(source, num_articles)
+
     
     if not article_urls:
         print(f"❌ No articles found for {source}")
@@ -215,7 +287,6 @@ def create_jsons_from_source(source, num_articles=300):
 
 
 
-
 def run_all_sources():
     """ Runs scraping for all sources, prints a final summary, and measures execution time """
     start_time = time.time()
@@ -238,9 +309,9 @@ def run_all_sources():
     print(f"⏳ Total execution time: {execution_time:.2f} seconds")
 
 # Example usage
-# create_jsons_from_source("ntv", 30) 
+#create_jsons_from_source("sozcu", 300) 
 # create_jsons_from_source("cumhuriyet", 30) 
-# create_jsons_from_source("milliyet", 30) 
+#create_jsons_from_source("milliyet", 300) 
 
 # create_jsons_from_source("ahaber", 30) 
 #create_jsons_from_source("sabah", 300)
