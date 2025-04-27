@@ -211,10 +211,18 @@ def scrapeArticleGeneral(url):
         }
 
 
-# Function to save JSON data to a local file with source and publication date
 def save_json_locally(data, location=""):
     if location == "":
         location = PULLED_ARTICLES_SAVE_DIR
+
+    # Skip saving if the article is invalid
+    if (
+        data.get("is_empty", False) or 
+        not data.get("content") or 
+        data.get("error")  # Error field varsa (boş bile olsa), kaydetmeyeceğiz
+    ):
+        print(f"🚫 Skipping invalid article: {data.get('url', 'Unknown URL')}")
+        return
 
     # Ensure directory exists
     if not os.path.exists(location):
@@ -227,7 +235,7 @@ def save_json_locally(data, location=""):
 
     # Clean title for filename
     filename_title = "".join(c if c.isalnum() else "_" for c in title)[:50]
-    filename = f"{source}_{article_date[:10]}_{safe_filename(title, data['url'])}.json"
+    filename = f"{source}_{article_date[:10]}_{safe_filename(title, data.get('url', ''))}.json"
     filepath = os.path.join(location, filename)
     
     try:

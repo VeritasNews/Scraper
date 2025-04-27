@@ -189,9 +189,18 @@ rss_sources = {
                     "https://www.yenisafak.com/rss?xml=yasam",
                     "https://www.yenisafak.com/rss?xml=kultur-sanat",],
                    
-    "trt_haber": [ "https://www.trthaber.com/sondakika.rss",
+    "trt_haber": [  "https://www.trthaber.com/sondakika.rss",
                   ],
-    "halktv" : [ "https://halktv.com.tr/service/rss.php",]
+    "halktv" : [    "https://halktv.com.tr/service/rss.php",],
+    "haberturk": [  "https://www.haberturk.com/rss",
+                    "https://www.haberturk.com/rss/ekonomi",
+                    "https://www.haberturk.com/rss/spor",
+                    "https://www.haberturk.com/rss/kategori/siyaset",
+                    "https://www.haberturk.com/rss/kategori/is-yasam",
+                    "https://www.haberturk.com/rss/kategori/gundem",
+                    "https://www.haberturk.com/rss/kategori/dunya",
+                    "https://www.haberturk.com/rss/kategori/teknoloji",
+                   ],
 
 }
 
@@ -350,21 +359,30 @@ def run_all_sources():
     """ Runs scraping for all sources, prints a final summary, and measures execution time """
     start_time = time.time()
 
+    # Sayaçlar
+    total_attempted = 0
+    total_saved = 0
+
     for source in source_urls.keys():
         create_jsons_from_source(source, 300)
 
     end_time = time.time()
     execution_time = end_time - start_time
 
-    # ✅ Print Summary at the End
-    print("\n📊 Summary of articles saved:")
-    total = 0
+    # ✅ Print Detailed Summary at the End
+    print("\n📊 SUMMARY:")
+
     for source, count in article_counts.items():
         empty_count = empty_content_counts.get(source, 0)
         print(f"✅ {source}: {count} articles ({empty_count} empty)")
-        total += count
 
-    print(f"\n📈 Total articles saved: {total}")
+        total_attempted += count
+        total_saved += (count - empty_count)
+
+    print("\n📈 OVERALL:")
+    print(f"🔢 Total articles found (including errors and empty ones): {total_attempted}")
+    print(f"🗑️ Invalid or empty articles removed: {total_attempted - total_saved}")
+    print(f"✅ Final valid articles saved: {total_saved}")
     print(f"⏳ Total execution time: {execution_time:.2f} seconds")
 
 # Example usage
