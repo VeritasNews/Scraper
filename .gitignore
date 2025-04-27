@@ -1,7 +1,8 @@
 saved_articles
 grouped_articles
 generated_articles
+pulled_articles
 __pycache__
 venv
 .env
-config.py
+
