@@ -27,9 +27,33 @@ import aiohttp
 from bs4 import BeautifulSoup
 from datetime import datetime
 
+
+def save_url(source, url):
+    save_dir = "pulled_articles"  # ✅ URL'lerin kaydedildiği klasör
+    os.makedirs(save_dir, exist_ok=True)  # Klasör yoksa oluştur
+
+    save_path = os.path.join(save_dir, f"{source}_urls.txt")  # ✅ Her source için ayrı küçük bir txt dosya
+    with open(save_path, "a", encoding="utf-8") as f:
+        f.write(url + "\n")
+
+def load_saved_urls(source):
+    save_dir = "pulled_articles"
+    save_path = os.path.join(save_dir, f"{source}_urls.txt")
+    
+    if not os.path.exists(save_path):
+        return set()
+    
+    with open(save_path, "r", encoding="utf-8") as f:
+        urls = set(line.strip() for line in f if line.strip())
+    return urls
+
+
 async def fetch_article(session, url, source):
     """ Asynchronous request to fetch an article """
     try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        }
         async with session.get(url, timeout = 10 ) as response:
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
@@ -82,10 +106,12 @@ async def fetch_article(session, url, source):
                 content_blocks = soup.select("div[class^='news-'] p")  # tüm news-* div'leri hedef alır
                 if not content_blocks:
                     content_blocks = soup.select("div[class*='content'] p, article p, main p")
-            elif source == "sozcu":
-                content_blocks = soup.select("div.entry-content p")
+            elif source == "sendika":  # 📌 Bunu buraya ekle
+                title_tag = soup.select_one("h3.title")
+                title_text = title_tag.get_text(strip=True) if title_tag else "Untitled"
+                content_blocks = soup.select("div#news p")
                 if not content_blocks:
-                    content_blocks = soup.select("article p, main p, div[class*='content'] p")
+                    content_blocks = soup.select("article p, main p")
             else:
                 # General extraction
                 content_blocks = soup.select("div[class*='content'] p, div[class*='article-body'] p, div[class*='news'] p")
@@ -127,31 +153,71 @@ async def scrape_articles_async(article_urls, source):
         results = await asyncio.gather(*tasks)
     return results
 
+rss_sources = {
+    "tele1": [
+        "https://tele1.com.tr/rss",
+        "https://www.tele1.com.tr/rss/tum-mansetler",
+        "https://www.tele1.com.tr/rss/bilim-ve-teknoloji-evreni"
+    ],
+    "gazete_duvar": [ "https://www.gazeteduvar.com.tr/export/rss" ],
+    "sozcu": [
+        "https://www.sozcu.com.tr/feeds-rss-category-ekonomi",
+        "https://www.sozcu.com.tr/feeds-rss-category-spor",
+        "https://www.sozcu.com.tr/feeds-rss-category-gundem",
+        "https://www.sozcu.com.tr/feeds-son-dakika",
+        "https://www.sozcu.com.tr/feeds-haberler",
+        "https://www.sozcu.com.tr/feeds-rss-category-dunya"
+    ],
+    "artıgercek": [
+        "https://artigercek.com/export/rss"
+    ],
+    "politikyol": [ "https://www.politikyol.com/rss" 
+                    "https://www.politikyol.com/rss/ekonomi",
+                    "https://www.politikyol.com/rss/gundem",
+                    "https://www.politikyol.com/rss/emek",
+                    "https://www.politikyol.com/rss/politika",
+                    "https://www.politikyol.com/rss/spor",],
+    "diken": [ "https://www.diken.com.tr/feed/"
+            ],
+    "yeni_safak": [ "https://www.yenisafak.com/rss?xml=gundem",
+                    "https://www.yenisafak.com/rss?xml=ekonomi",
+                    "https://www.yenisafak.com/rss?xml=spor",
+                    "https://www.yenisafak.com/rss?xml=dunya",
+                    "https://www.yenisafak.com/rss?xml=sondakika",
+                    "https://www.yenisafak.com/rss?xml=teknoloji",
+                    "https://www.yenisafak.com/rss?xml=saglik",
+                    "https://www.yenisafak.com/rss?xml=yasam",
+                    "https://www.yenisafak.com/rss?xml=kultur-sanat",],
+                   
+    "trt_haber": [ "https://www.trthaber.com/sondakika.rss",
+                  ],
+    "halktv" : [ "https://halktv.com.tr/service/rss.php",]
 
+}
 
+def get_articles_from_rss(source, num_articles=100):
+    if source not in rss_sources:
+        print(f"❌ Source {source} has no defined RSS feeds.")
+        return []
 
-def get_sozcu_links_from_rss(num_articles=50):
-    rss_feeds = [
-        "https://www.sozcu.com.tr/rss/gundem.xml",
-        "https://www.sozcu.com.tr/rss/yasam.xml",
-        "https://www.sozcu.com.tr/rss/ekonomi.xml",
-        "https://www.sozcu.com.tr/rss/son-dakika.xml"
-    ]
-    all_links = set()
+    rss_urls = rss_sources[source]
+    links = []
 
-    for rss in rss_feeds:
-        print(f"📡 Fetching RSS: {rss}")
-        feed = feedparser.parse(rss)
+    for rss_url in rss_urls:
+        print(f"📡 Fetching RSS: {rss_url}")
+        feed = feedparser.parse(rss_url)
+
         for entry in feed.entries:
-            url = entry.link
-            if url.startswith("https://www.sozcu.com.tr/") and url not in all_links:
-                all_links.add(url)
-                if len(all_links) >= num_articles:
-                    return list(all_links)
-    
-    print(f"✅ Found {len(all_links)} articles from RSS")
-    return list(all_links)
+            if 'link' in entry and entry.link not in links:
+                links.append(entry.link)
+                if len(links) >= num_articles:
+                    break
 
+        if len(links) >= num_articles:
+            break
+
+    print(f"✅ Found {len(links)} articles from {source} RSS.")
+    return links
 
 
 def save_articles_multithreaded(articles):
@@ -186,14 +252,12 @@ def find_article_urls(source, num_articles=30, max_pages=10):
 
         while len(article_urls) < num_articles and page <= max_pages:
             url = f"{base_url}?page={page}"
-            #Burdan
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
             }
-            response = session.get(url, headers=headers, timeout=10)  # Set a timeout for the request, eğer ki 10sn cevap gelmezse sayfa geçile
-            #buraya kadar değiştir ( response = session.get(url) yerine bu aradaki yer koyuldu)
+            response = session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
-            print(f"\n🧪 {url} response preview:\n{response.text[:1000]}\n{'-'*60}\n") # kontrol için debugger
+            print(f"\n🧪 {url} response preview:\n{response.text[:1000]}\n{'-'*60}\n")
             soup = BeautifulSoup(response.text, 'html.parser')
 
             new_articles_found = False
@@ -220,20 +284,16 @@ def find_article_urls(source, num_articles=30, max_pages=10):
             if current_total == prev_article_total:
                 stagnant_count += 1
             else:
-                stagnant_count = 0  # reset
+                stagnant_count = 0
             prev_article_total = current_total
 
             print(f"📄 Checked page {page} for {source}, found {current_total} articles so far.")
 
-            if stagnant_count >= 6:
+            if stagnant_count >= 7:
                 print(f"🔁 Stopping early for {source} after {stagnant_count} stagnant pages.")
                 break
 
             page += 1
-
-
-            print(f"📄 Checked page {page} for {source}, found {len(article_urls)} articles so far.")
-            page += 1  # Move to the next page
 
         print(f"✅ Final count: {len(article_urls)} articles found for {source}")
 
@@ -246,16 +306,15 @@ def find_article_urls(source, num_articles=30, max_pages=10):
 
 
 
-# Track empty content counts globally
-empty_content_counts = {}
 
 # Track empty content counts globally
 empty_content_counts = {}
+
 
 def create_jsons_from_source(source, num_articles=300):
-    """ Scrapes and saves articles using async + threading """
-    if source == "sozcu":
-        article_urls = get_sozcu_links_from_rss(num_articles)
+    # RSS olarak verdiğimiz kaynaklar otomatik olarak RSS'den çekiliyor
+    if source in rss_sources:  # rss_sources dict'ini kullanıyoruz
+        article_urls = get_articles_from_rss(source, num_articles)
     else:
         article_urls = find_article_urls(source, num_articles)
 
@@ -309,7 +368,7 @@ def run_all_sources():
     print(f"⏳ Total execution time: {execution_time:.2f} seconds")
 
 # Example usage
-#create_jsons_from_source("sozcu", 300) 
+#create_jsons_from_source("gazete_duvar", 300) 
 # create_jsons_from_source("cumhuriyet", 30) 
 #create_jsons_from_source("milliyet", 300) 
 
