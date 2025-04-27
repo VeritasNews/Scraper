@@ -386,13 +386,18 @@ def run_all_sources():
     print(f"⏳ Total execution time: {execution_time:.2f} seconds")
 
 # Example usage
-#create_jsons_from_source("gazete_duvar", 300) 
+# create_jsons_from_source("gazete_duvar", 300) 
 # create_jsons_from_source("cumhuriyet", 30) 
-#create_jsons_from_source("milliyet", 300) 
+# create_jsons_from_source("milliyet", 300) 
 
 # create_jsons_from_source("ahaber", 30) 
-#create_jsons_from_source("sabah", 300)
+# create_jsons_from_source("sabah", 300)
 
 # Iterate over all sources in source_urls and scrape articles
-run_all_sources()
+
+while True:
+    #run_all_sources()
+    print("🕒 Sleeping 900 seconds (15 minutes)...")
+    time.sleep(900)
+
 #create_jsons_from_source("ntv", 300)
