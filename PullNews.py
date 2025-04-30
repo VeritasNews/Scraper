@@ -14,6 +14,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 import time
 import config
+from config import LOG_DIR, NEW_ARTICLES_LOG_DIR, PULLED_ARTICLES_SAVE_DIR, MATCHING_PULL_DIR, GROUPED_ARTICLES_PULL_DIR, GROUPED_ARTICLES_DIR, GENERATED_ARTICLES_SAVE_DIR, SUMMARIZED_GENERATED_ARTICLES_SAVE_DIR, MATCH_V2_DIR, PULLED_ARTICLES_SAVE_DIR, OBJECTIVE_ARTICLES_DIR, IMAGE_DIR, IMAGED_JSON_DIR, CREATED_ARTICLES, GENERATED_ARTICLES_ARTICLES_V2
 import urllib
 from collections import defaultdict
 from API_1 import scrapeArticleGeneral, save_json_locally
@@ -27,18 +28,28 @@ import aiohttp
 from bs4 import BeautifulSoup
 from datetime import datetime
 
+def count_json_files():
+    folder = PULLED_ARTICLES_SAVE_DIR
+    return len([f for f in os.listdir(folder) if f.endswith('.json')])
+
+def safe_source_filename(source):
+    """Create a filesystem-safe filename from a source name."""
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', source)
 
 def save_url(source, url):
-    save_dir = "pulled_articles"  # ✅ URL'lerin kaydedildiği klasör
-    os.makedirs(save_dir, exist_ok=True)  # Klasör yoksa oluştur
+    save_dir = PULLED_ARTICLES_SAVE_DIR
+    os.makedirs(save_dir, exist_ok=True)
 
-    save_path = os.path.join(save_dir, f"{source}_urls.txt")  # ✅ Her source için ayrı küçük bir txt dosya
+    safe_source = safe_source_filename(source)
+    save_path = os.path.join(save_dir, f"{safe_source}_urls.txt")
+
     with open(save_path, "a", encoding="utf-8") as f:
         f.write(url + "\n")
 
 def load_saved_urls(source):
-    save_dir = "pulled_articles"
-    save_path = os.path.join(save_dir, f"{source}_urls.txt")
+    save_dir = PULLED_ARTICLES_SAVE_DIR
+    safe_source = safe_source_filename(source)
+    save_path = os.path.join(save_dir, f"{safe_source}_urls.txt")
     
     if not os.path.exists(save_path):
         return set()
@@ -46,6 +57,22 @@ def load_saved_urls(source):
     with open(save_path, "r", encoding="utf-8") as f:
         urls = set(line.strip() for line in f if line.strip())
     return urls
+## bu şimdilik çalışmıyor ama çalışmaması daha iyi zaten
+def clean_url_txt_files():
+    """Deletes all *_urls.txt files in pulled_articles at startup or shutdown."""
+    save_dir = "pulled_articles"
+    if not os.path.exists(save_dir):
+        return
+    
+    for filename in os.listdir(save_dir):
+        if filename.endswith("_urls.txt"):
+            file_path = os.path.join(save_dir, filename)
+            try:
+                os.remove(file_path)
+                print(f"🧹 Deleted URL file: {filename}")
+            except Exception as e:
+                print(f"⚠️ Could not delete {filename}: {e}")
+
 
 
 async def fetch_article(session, url, source):
@@ -189,9 +216,18 @@ rss_sources = {
                     "https://www.yenisafak.com/rss?xml=yasam",
                     "https://www.yenisafak.com/rss?xml=kultur-sanat",],
                    
-    "trt_haber": [ "https://www.trthaber.com/sondakika.rss",
+    "trt_haber": [  "https://www.trthaber.com/sondakika.rss",
                   ],
-    "halktv" : [ "https://halktv.com.tr/service/rss.php",]
+    "halktv" : [    "https://halktv.com.tr/service/rss.php",],
+    "haberturk": [  "https://www.haberturk.com/rss",
+                    "https://www.haberturk.com/rss/ekonomi.xml",
+                    "https://www.haberturk.com/rss/spor.xml",
+                    "https://www.haberturk.com/rss/kategori/siyaset.xml",
+                    "https://www.haberturk.com/rss/kategori/is-yasam.xml",
+                    "https://www.haberturk.com/rss/kategori/gundem.xml",
+                    "https://www.haberturk.com/rss/kategori/dunya.xml",
+                    "https://www.haberturk.com/rss/kategori/teknoloji.xml",
+                   ],
 
 }
 
@@ -205,7 +241,16 @@ def get_articles_from_rss(source, num_articles=100):
 
     for rss_url in rss_urls:
         print(f"📡 Fetching RSS: {rss_url}")
-        feed = feedparser.parse(rss_url)
+
+        try:
+            feed = feedparser.parse(rss_url)
+            # 🔥 Bozuk RSS yakala
+            if getattr(feed, "bozo", False):
+                print(f"⚠️ Warning: RSS feed {rss_url} is malformed. Skipping...")
+                continue
+        except Exception as e:
+            print(f"⚠️ Failed to parse RSS feed {rss_url}: {e}")
+            continue
 
         for entry in feed.entries:
             if 'link' in entry and entry.link not in links:
@@ -218,7 +263,6 @@ def get_articles_from_rss(source, num_articles=100):
 
     print(f"✅ Found {len(links)} articles from {source} RSS.")
     return links
-
 
 def save_articles_multithreaded(articles):
     print(f"🔄 Saving {len(articles)} articles using multi-threading...")  # Debugging
@@ -312,69 +356,152 @@ empty_content_counts = {}
 
 
 def create_jsons_from_source(source, num_articles=300):
-    # RSS olarak verdiğimiz kaynaklar otomatik olarak RSS'den çekiliyor
-    if source in rss_sources:  # rss_sources dict'ini kullanıyoruz
+    if source in rss_sources:
         article_urls = get_articles_from_rss(source, num_articles)
     else:
         article_urls = find_article_urls(source, num_articles)
 
-    
     if not article_urls:
         print(f"❌ No articles found for {source}")
         article_counts[source] = 0
-        empty_content_counts[source] = 0  # No empty articles
-        return
-    
-    # Use asyncio to fetch articles asynchronously
+        empty_content_counts[source] = 0
+        return 0  # Return 0 new articles
+
+    # ✅ Yeni kısım: Eski URL'leri yükle
+    existing_urls = load_saved_urls(source)
+
+    # ✅ Sadece yeni URL'leri al
+    new_article_urls = [url for url in article_urls if url not in existing_urls]
+
+    if not new_article_urls:
+        print(f"⚠️ No new articles found for {source}.")
+        article_counts[source] = 0
+        empty_content_counts[source] = 0
+        return 0
+
+    # Fetch the articles
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    articles = loop.run_until_complete(scrape_articles_async(article_urls, source))
- 
-    # ✅ Correctly Count Empty Articles
-    empty_count = sum(1 for article in articles if not article.get("content") or article.get("is_empty", False))
-    empty_content_counts[source] = empty_count
+    articles = loop.run_until_complete(scrape_articles_async(new_article_urls, source))
 
-    # Save articles using multi-threading
+    # Save the articles
     save_articles_multithreaded(articles)
 
-    # Store count for later summary
+    # Save newly processed URLs
+    for url in new_article_urls:
+        save_url(source, url)
+
+    # Count
+    empty_count = sum(1 for article in articles if not article.get("content") or article.get("is_empty", False))
+    empty_content_counts[source] = empty_count
     article_counts[source] = len(articles)
 
-    # ✅ Print empty count immediately after processing a source
     print(f"📊 {source}: {len(articles)} articles saved ({empty_count} empty)")
 
+    # ✅ Return kaç yeni article bulundu
+    return len(new_article_urls)
 
+def log_scraper_activity(new_articles_count, log_file= LOG_DIR):
+    """Logs the number of new articles found during a scrape cycle."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if new_articles_count > 0:
+        log_entry = f"[{timestamp}] ✅ {new_articles_count} new articles found and saved.\n"
+    else:
+        log_entry = f"[{timestamp}] ⚠️ No new articles found.\n"
+    
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(log_entry)
 
+def reset_new_articles_log():
+    with open(NEW_ARTICLES_LOG_DIR, "w", encoding="utf-8") as f:
+        pass  # Dosyayı boş yaz
 
-def run_all_sources():
-    """ Runs scraping for all sources, prints a final summary, and measures execution time """
+def run_all_sources_incremental():
+    if os.path.exists(NEW_ARTICLES_LOG_DIR):
+        os.remove(NEW_ARTICLES_LOG_DIR)
     start_time = time.time()
+    total_attempted = 0
+    total_saved = 0
+    total_new_articles = 0
 
     for source in source_urls.keys():
-        create_jsons_from_source(source, 300)
+        new_articles = create_jsons_from_source(source, 300)
+        total_new_articles += new_articles
 
     end_time = time.time()
     execution_time = end_time - start_time
 
-    # ✅ Print Summary at the End
-    print("\n📊 Summary of articles saved:")
-    total = 0
+    print("\n📊 SUMMARY:")
     for source, count in article_counts.items():
         empty_count = empty_content_counts.get(source, 0)
         print(f"✅ {source}: {count} articles ({empty_count} empty)")
-        total += count
+        total_attempted += count
+        total_saved += (count - empty_count)
 
-    print(f"\n📈 Total articles saved: {total}")
+    print("\n📈 OVERALL:")
+    print(f"🔢 Total articles found (including errors and empty ones): {total_attempted}")
+    print(f"🗑️ Invalid or empty articles removed: {total_attempted - total_saved}")
+    print(f"✅ Final valid articles saved: {total_saved}")
     print(f"⏳ Total execution time: {execution_time:.2f} seconds")
+    print(f"\n🆕 New articles found and saved in this run: {total_new_articles}")
+
+
+# if __name__ == "__main__":
+#     while True:
+#         before_run = count_json_files()
+#         run_all_sources_incremental()
+#         after_run = count_json_files()
+#         real_new_files = after_run - before_run
+        
+#         print(f"🆕 Real new JSON files saved in this run: {real_new_files}")
+#         log_scraper_activity(real_new_files)
+
+#         print("\n🕒 Sleeping 900 seconds (15 minutes)...")
+#         time.sleep(900)
+
+
+
+
+
+
+
+# def run_all_sources():
+#     """ Runs scraping for all sources, prints a final summary, and measures execution time """
+#     start_time = time.time()
+
+#     # Sayaçlar
+#     total_attempted = 0
+#     total_saved = 0
+
+#     for source in source_urls.keys():
+#         create_jsons_from_source(source, 300)
+
+#     end_time = time.time()
+#     execution_time = end_time - start_time
+
+#     # ✅ Print Detailed Summary at the End
+#     print("\n📊 SUMMARY:")
+
+#     for source, count in article_counts.items():
+#         empty_count = empty_content_counts.get(source, 0)
+#         print(f"✅ {source}: {count} articles ({empty_count} empty)")
+
+#         total_attempted += count
+#         total_saved += (count - empty_count)
+
+#     print("\n📈 OVERALL:")
+#     print(f"🔢 Total articles found (including errors and empty ones): {total_attempted}")
+#     print(f"🗑️ Invalid or empty articles removed: {total_attempted - total_saved}")
+#     print(f"✅ Final valid articles saved: {total_saved}")
+#     print(f"⏳ Total execution time: {execution_time:.2f} seconds")
 
 # Example usage
-#create_jsons_from_source("gazete_duvar", 300) 
+# create_jsons_from_source("gazete_duvar", 300) 
 # create_jsons_from_source("cumhuriyet", 30) 
-#create_jsons_from_source("milliyet", 300) 
+# create_jsons_from_source("milliyet", 300) 
 
 # create_jsons_from_source("ahaber", 30) 
-#create_jsons_from_source("sabah", 300)
+# create_jsons_from_source("sabah", 300)
 
 # Iterate over all sources in source_urls and scrape articles
-run_all_sources()
 #create_jsons_from_source("ntv", 300)
