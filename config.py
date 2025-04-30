@@ -2,7 +2,10 @@ import os
 
 from pathlib import Path
 print("📄 Aktif config.py burası:", __file__)
-BASE_DIR = Path(r"/home/yagizberkuyar/Desktop/Code/Projects/VeritasNews/Scraper")
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+
 my_key_gemini = "AIzaSyAINJxJPqnFGg6UCvN3nUoUfI3kFRTSOL8"
 
 # Define subdirectories using pathlib

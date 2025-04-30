@@ -9,7 +9,7 @@ from io import BytesIO
 import config
 
 # === CONFIGURATION ===
-GENERATED_ARTICLE_DIR = config.GENERATED_ARTICLES_ARTICLES_V2  # Directory with generated article JSONs
+GENERATED_ARTICLE_DIR = config.OBJECTIVE_ARTICLES_DIR  # Directory with generated article JSONs
 OUTPUT_DIR = config.IMAGED_JSON_DIR   # Output directory for updated JSONs
 #OUTPUT_IMG_DIR = config.IMAGE_DIR              # Directory to save downloaded images
 
@@ -79,15 +79,15 @@ def process_article(json_path: Path):
 
     print(f"✅ Saved: {folder_name}")
 
-# === Run main ===
 def main():
     if not GENERATED_ARTICLE_DIR.exists():
         print(f"❌ Folder not found: {GENERATED_ARTICLE_DIR}")
         return
 
-    for file in os.listdir(GENERATED_ARTICLE_DIR):
-        if file.endswith(".json"):
-            process_article(GENERATED_ARTICLE_DIR / file)
+    for subdir in GENERATED_ARTICLE_DIR.iterdir():
+        article_json = subdir / "article.json"
+        if article_json.exists():
+            process_article(article_json)
 
 if __name__ == "__main__":
     main()

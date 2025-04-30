@@ -5,4 +5,6 @@ pulled_articles
 __pycache__
 venv
 .env
-
+objectified_jsons
+config.py
+articles_with_images
