@@ -7,14 +7,9 @@ from datetime import datetime
 from urllib.parse import urlparse
 import config
 import hashlib
-
+from config import PULLED_ARTICLES_SAVE_DIR, NEW_ARTICLES_LOG_DIR
 app = Flask(__name__)
-print("✅ config.SOURCE_URLS keys:", list(config.SOURCE_URLS.keys()))
 
-# Directory for saving JSON files
-# NOT: BURAYI KENDİ PATHİNİZİ GİRİN
-PULLED_ARTICLES_SAVE_DIR = config.PULLED_ARTICLES_SAVE_DIR  #"desktop/articles"
-import hashlib
 
 ## Bazı siteler title'ı sadece "ana menü" gibi dönüyor, bu yüzden başlıkları güvenli bir şekilde oluşturmak için URL'yi de kullanıyoruz.
 def safe_filename(title, url):
@@ -243,9 +238,13 @@ def save_json_locally(data, location=""):
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
         print(f"✅ Successfully saved: {filepath}")  # Success message
+
+        # 🔥 Add: Log newly saved article path
+        with open(config.NEW_ARTICLES_LOG_DIR, "a", encoding="utf-8") as log_file:
+            log_file.write(filepath + "\n")
+
     except Exception as e:
         print(f"❌ Failed to save file: {filepath}, Error: {e}")
-
 
 def scrape_cnnturk(url):
     """ Scrapes articles from CNN Türk correctly. """

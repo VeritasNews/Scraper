@@ -8,11 +8,16 @@ my_key_gemini = "AIzaSyAINJxJPqnFGg6UCvN3nUoUfI3kFRTSOL8"
 # Define subdirectories using pathlib
 PULLED_ARTICLES_SAVE_DIR = BASE_DIR / "pulled_articles"
 MATCHING_PULL_DIR = BASE_DIR / "article_match_samples" / "s1"
-GROUPED_ARTICLES_PULL_DIR = BASE_DIR / "grouped_articles" / "group_4"
+GROUPED_ARTICLES_PULL_DIR = BASE_DIR / "grouped_articles"
+GROUPED_ARTICLES_DIR = BASE_DIR / "grouped_articles_updated"
 GENERATED_ARTICLES_SAVE_DIR = BASE_DIR / "generated_articles"
 SUMMARIZED_GENERATED_ARTICLES_SAVE_DIR = BASE_DIR / "generated_articles"
 MATCH_V2_DIR = BASE_DIR / "matched_v2"
 PULLED_ARTICLES_SAVE_DIR = BASE_DIR / "pulled_articles"
+
+NEW_ARTICLES_LOG_DIR = BASE_DIR / "new_articles_log.txt"
+LOG_DIR = BASE_DIR / "scraper_log.txt"
+CACHE_FILE = BASE_DIR / "embedding_cache.json"
 
 OBJECTIVE_ARTICLES_DIR = BASE_DIR / "objectified_jsons"
 IMAGE_DIR = BASE_DIR / "images"
@@ -70,11 +75,9 @@ SOURCE_URLS = {
     "dunya": "https://www.dunya.com/",
     "birgun": "https://www.birgun.net/",
     "t24": "https://t24.com.tr/",
-    "gazete_duvar": "https://www.gazeteduvar.com.tr/",
     "bianet": "https://bianet.org/",
     "hurriyet_daily_news": "https://www.hurriyetdailynews.com/",
     "daily_sabah": "https://www.dailysabah.com/",
-    #"trt_world": "https://www.trtworld.com/", ##trt haber ekledim bunun yerine rss ile çekiliyor
     # Add additional sources as needed
 }
 

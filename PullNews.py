@@ -14,6 +14,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 import time
 import config
+from config import LOG_DIR, NEW_ARTICLES_LOG_DIR, PULLED_ARTICLES_SAVE_DIR, MATCHING_PULL_DIR, GROUPED_ARTICLES_PULL_DIR, GROUPED_ARTICLES_DIR, GENERATED_ARTICLES_SAVE_DIR, SUMMARIZED_GENERATED_ARTICLES_SAVE_DIR, MATCH_V2_DIR, PULLED_ARTICLES_SAVE_DIR, OBJECTIVE_ARTICLES_DIR, IMAGE_DIR, IMAGED_JSON_DIR, CREATED_ARTICLES, GENERATED_ARTICLES_ARTICLES_V2
 import urllib
 from collections import defaultdict
 from API_1 import scrapeArticleGeneral, save_json_locally
@@ -28,7 +29,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 def count_json_files():
-    folder = "pulled_articles"
+    folder = PULLED_ARTICLES_SAVE_DIR
     return len([f for f in os.listdir(folder) if f.endswith('.json')])
 
 def safe_source_filename(source):
@@ -36,7 +37,7 @@ def safe_source_filename(source):
     return re.sub(r'[^a-zA-Z0-9_-]', '_', source)
 
 def save_url(source, url):
-    save_dir = "pulled_articles"
+    save_dir = PULLED_ARTICLES_SAVE_DIR
     os.makedirs(save_dir, exist_ok=True)
 
     safe_source = safe_source_filename(source)
@@ -46,7 +47,7 @@ def save_url(source, url):
         f.write(url + "\n")
 
 def load_saved_urls(source):
-    save_dir = "pulled_articles"
+    save_dir = PULLED_ARTICLES_SAVE_DIR
     safe_source = safe_source_filename(source)
     save_path = os.path.join(save_dir, f"{safe_source}_urls.txt")
     
@@ -56,7 +57,7 @@ def load_saved_urls(source):
     with open(save_path, "r", encoding="utf-8") as f:
         urls = set(line.strip() for line in f if line.strip())
     return urls
-
+## bu şimdilik çalışmıyor ama çalışmaması daha iyi zaten
 def clean_url_txt_files():
     """Deletes all *_urls.txt files in pulled_articles at startup or shutdown."""
     save_dir = "pulled_articles"
@@ -400,18 +401,7 @@ def create_jsons_from_source(source, num_articles=300):
     # ✅ Return kaç yeni article bulundu
     return len(new_article_urls)
 
-
-import os
-import json
-import time
-from datetime import datetime
-
-# Bu değişkenlerin zaten dosyada tanımlı olması lazım:
-# - source_urls
-# - create_jsons_from_source
-# - article_counts
-# - empty_content_counts
-def log_scraper_activity(new_articles_count, log_file="scraper_log.txt"):
+def log_scraper_activity(new_articles_count, log_file= LOG_DIR):
     """Logs the number of new articles found during a scrape cycle."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if new_articles_count > 0:
@@ -422,9 +412,14 @@ def log_scraper_activity(new_articles_count, log_file="scraper_log.txt"):
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(log_entry)
 
-def run_all_sources_incremental():
-    start_time = time.time()
+def reset_new_articles_log():
+    with open(NEW_ARTICLES_LOG_DIR, "w", encoding="utf-8") as f:
+        pass  # Dosyayı boş yaz
 
+def run_all_sources_incremental():
+    if os.path.exists(NEW_ARTICLES_LOG_DIR):
+        os.remove(NEW_ARTICLES_LOG_DIR)
+    start_time = time.time()
     total_attempted = 0
     total_saved = 0
     total_new_articles = 0
@@ -451,18 +446,18 @@ def run_all_sources_incremental():
     print(f"\n🆕 New articles found and saved in this run: {total_new_articles}")
 
 
-if __name__ == "__main__":
-    while True:
-        before_run = count_json_files()
-        run_all_sources_incremental()
-        after_run = count_json_files()
-        real_new_files = after_run - before_run
+# if __name__ == "__main__":
+#     while True:
+#         before_run = count_json_files()
+#         run_all_sources_incremental()
+#         after_run = count_json_files()
+#         real_new_files = after_run - before_run
         
-        print(f"🆕 Real new JSON files saved in this run: {real_new_files}")
-        log_scraper_activity(real_new_files)
+#         print(f"🆕 Real new JSON files saved in this run: {real_new_files}")
+#         log_scraper_activity(real_new_files)
 
-        print("\n🕒 Sleeping 900 seconds (15 minutes)...")
-        time.sleep(900)
+#         print("\n🕒 Sleeping 900 seconds (15 minutes)...")
+#         time.sleep(900)
 
 
 
