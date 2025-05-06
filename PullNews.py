@@ -14,7 +14,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 import time
 import config
-from config import LOG_DIR, NEW_ARTICLES_LOG_DIR, PULLED_ARTICLES_SAVE_DIR, MATCHING_PULL_DIR, GROUPED_ARTICLES_PULL_DIR, GROUPED_ARTICLES_DIR, GENERATED_ARTICLES_SAVE_DIR, SUMMARIZED_GENERATED_ARTICLES_SAVE_DIR, MATCH_V2_DIR, PULLED_ARTICLES_SAVE_DIR, OBJECTIVE_ARTICLES_DIR, IMAGE_DIR, IMAGED_JSON_DIR, CREATED_ARTICLES, GENERATED_ARTICLES_ARTICLES_V2
+from config import LOG_DIR, NEW_ARTICLES_LOG_DIR, PULLED_ARTICLES_SAVE_DIR, SOURCE_URLS, MATCHING_PULL_DIR, GROUPED_ARTICLES_PULL_DIR, GROUPED_ARTICLES_DIR, GENERATED_ARTICLES_SAVE_DIR, SUMMARIZED_GENERATED_ARTICLES_SAVE_DIR, MATCH_V2_DIR, PULLED_ARTICLES_SAVE_DIR, OBJECTIVE_ARTICLES_DIR, IMAGE_DIR, IMAGED_JSON_DIR, CREATED_ARTICLES, GENERATED_ARTICLES_ARTICLES_V2
 import urllib
 from collections import defaultdict
 from API_1 import scrapeArticleGeneral, save_json_locally
@@ -272,9 +272,6 @@ def save_articles_multithreaded(articles):
 
     print("✅ All articles saved successfully!")
 
-
-
-
 # Function to find article URLs on the homepage or a category page
 def find_article_urls(source, num_articles=30, max_pages=10):
     base_url = source_urls.get(source.lower())
@@ -346,10 +343,6 @@ def find_article_urls(source, num_articles=30, max_pages=10):
     except requests.RequestException as e:
         print(f"❌ Failed to retrieve articles from {source}: {e}")
         return []
-
-
-
-
 
 # Track empty content counts globally
 empty_content_counts = {}
