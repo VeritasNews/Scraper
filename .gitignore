@@ -8,3 +8,7 @@ venv
 objectified_jsons
 config.py
 articles_with_images
+scraper_log.txt
+new_articles_log.txt
+embedding_cache.json
+grouped_articles_updated/

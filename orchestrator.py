@@ -1,8 +1,11 @@
 import os
 import time
+import sys
 from PullNews import run_all_sources_incremental, count_json_files, log_scraper_activity, reset_new_articles_log
 from matcher import match_articles
 from config import GROUPED_ARTICLES_DIR
+#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'newsObjective.py')))
+#from newsObjective import main as NewsObjectify 
 
 def orchestrate():
     while True:
@@ -23,7 +26,8 @@ def orchestrate():
         # Run matching logic (initial + incremental handled inside)
         print("\n🚀 Running unified matching algorithm...")
         match_articles()
-
+        # Objectify articles + fetch images + send to database
+        #NewsObjectify()
         print("\n🕒 Sleeping 900 seconds (15 minutes)...")
         time.sleep(10)
 
