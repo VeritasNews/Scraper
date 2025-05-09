@@ -17,10 +17,24 @@ import google.generativeai as genai
 # ✅ Set UTF-8 encoding for Windows console
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+GEMINI_KEYS = [
+    "AIzaSyBbORiPLnFon4Xkj5GyF0GRT4EckyGZCzs",
+    "AIzaSyB35InVFxlPrGDqPDrQEABnYsDIx964RfU",
+    "AIzaSyCXDETtLkiBHka5dTNMkJz1myjkh-SS2jM"
+]
+
+current_key_index = 0  # Start with the first key
+
+def rotate_key():
+    global current_key_index
+    current_key_index = (current_key_index + 1) % len(GEMINI_KEYS)
+    genai.configure(api_key=GEMINI_KEYS[current_key_index])
+
+
 # ✅ Import config
 from config import (
     my_key_gemini,
-    GROUPED_ARTICLES_PULL_DIR as INPUT_DIR,
+    GROUPED_ARTICLES_DIR as INPUT_DIR,
     OBJECTIVE_ARTICLES_DIR as OUTPUT_DIR
 )
 
@@ -89,29 +103,33 @@ def read_json_files(directory):
                 articles.append(json.load(file))
     return articles
 
-def call_gemini(prompt):
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    time.sleep(3)
-    try:
-        response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        print(f"⚠️ AI Error: {e}")
-        return "Error"
+def call_gemini(prompt, retries=3):
+    global current_key_index
+    for attempt in range(retries):
+        genai.configure(api_key=GEMINI_KEYS[current_key_index])
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        time.sleep(1)
+        try:
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            print(f"⚠️ AI Error with key {current_key_index}: {e}")
+            rotate_key()  # Try next key
+    return "Error"
 
 def process_articles_with_ai(articles):
     articles_combined = "\n".join([json.dumps(a, ensure_ascii=False) for a in articles])
 
     prompts = {
-        "title": "Bu haber makalelerine dayanarak, 2-3 kelimelik nesnel bir başlık oluşturun:",
-        "short_summary": "Bu haber makalelerine dayanarak, 10-25 karakter arasında kısa, salt bilgi içeren bir özet oluşturun:",
-        "detailed_summary": "Bu haber makalelerine dayanarak detaylı ve salt bilgi içeren bir özet oluşturun:",
+        "title": "Bu haber makalelerine dayanarak, 2-3 kelimelik nesnel bir başlık oluştur, bana seçenek verme, sadece salt bilgi içeren başlık ver:",
+        "short_summary": "Bu haber makalelerine dayanarak, 10-25 karakter arasında kısa, salt bilgi içeren bir özet oluştur:",
+        "detailed_summary": "Bu haber makalelerine dayanarak detaylı ve salt bilgi içeren bir özet oluştur. Tek makale olsun: ",
         "category": """
         Bu haber makalesini aşağıdaki kategorilerden birine atayın:
         Siyaset, Eğlence, Spor, Teknoloji, Sağlık, Çevre, Bilim, Eğitim,
         Ekonomi, Seyahat, Moda, Kültür, Suç, Yemek, Yaşam Tarzı, İş Dünyası,
         Dünya Haberleri, Oyun, Otomotiv, Sanat, Tarih, Uzay, İlişkiler, Din,
-        Ruh Sağlığı, Magazin. Eğer bulamazsan 'Genel' yaz.
+        Ruh Sağlığı, Magazin. Eğer bulamazsan 'Genel' yaz. Başka bir şey yazma.
         """
     }
 
@@ -248,7 +266,7 @@ def main():
         processed_data = process_articles_with_ai(filtered_articles)
         save_article_folder(processed_data)
 
-    send_all_articles()
+    # send_all_articles()
     print("🎉 Done!")
 
 if __name__ == "__main__":
